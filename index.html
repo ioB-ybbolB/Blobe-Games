@@ -4,15 +4,102 @@
 <meta charset="UTF-8">
 <title>Blobe Games</title>
 <style>
-  body { margin:0; text-align:center; font-family:monospace; background:#000; color:#fff; }
-  .container { display:flex; flex-direction:column; align-items:center; margin:50px auto; }
-  .row { display:flex; flex-wrap:wrap; justify-content:center; }
-  .rounded-button { border-radius:40px; border:10px solid grey; width:250px; height:250px; margin:20px; background-size:cover; cursor:pointer; transition:.3s; }
-  .rounded-button:hover { transform:scale(1.1); border-color:red; }
-  .button-text { color:white; margin-top:10px; font-weight:bold; }
+  @keyframes glow {
+    0% { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff; }
+    50% { text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 60px #0ff; }
+    100% { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff; }
+  }
+
+  body {
+    margin: 0;
+    font-family: "Orbitron", monospace;
+    background: radial-gradient(circle at top, #000010, #000);
+    color: #00ffff;
+    text-align: center;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    margin-top: 40px;
+    font-size: 3em;
+    letter-spacing: 4px;
+    animation: glow 3s infinite ease-in-out;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 50px auto;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .rounded-button {
+    border-radius: 30px;
+    border: 2px solid #0ff;
+    box-shadow: 0 0 20px #0ff;
+    width: 220px;
+    height: 220px;
+    margin: 25px;
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .rounded-button::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent, rgba(0,255,255,0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+
+  .rounded-button:hover::before {
+    transform: translateX(100%);
+  }
+
+  .rounded-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 30px #0ff;
+    border-color: #f0f;
+  }
+
+  .button-text {
+    color: #0ff;
+    margin-top: 15px;
+    font-weight: bold;
+    text-shadow: 0 0 10px #0ff;
+    font-size: 1.2em;
+  }
+
+  /* Futuristic glow lines background */
+  .scanlines {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,255,255,0.05),
+      rgba(0,255,255,0.05) 1px,
+      transparent 2px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0.3;
+  }
 </style>
 </head>
 <body>
+<div class="scanlines"></div>
 <h1>Blobe Games</h1>
 <div class="container">
   <div class="row">
@@ -28,16 +115,29 @@
         onclick="loadGame('BopMooCow23','Run-3')"></button>
       <div class="button-text">Run 3</div>
     </div>
+    <div>
+      <button class="rounded-button" style="background-image: url('https://img.itch.zone/aW1nLzEyMzcxMjE1LnBuZw==/original/hFHrmG.png');" 
+          onclick="loadGame('BopMooCow23', 'Cat-Mario')"></button>
+      <p class="button-text">Cat Mario</p>
+    </div>
   </div>
 </div>
 
 <script>
+// Finds a valid branch dynamically by fetching the repo branch list
 async function findBranch(owner, repo) {
-  for (let b of ['main','master','gh-pages']) {
-    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${b}`);
-    if (r.ok) return b;
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches`);
+  if (!res.ok) throw new Error('Failed to list branches');
+  const branches = await res.json();
+  if (!Array.isArray(branches) || branches.length === 0)
+    throw new Error('No branches found');
+  
+  // Prioritize common branches but fallback to the first one
+  const preferred = ['main', 'master', 'gh-pages'];
+  for (const name of preferred) {
+    if (branches.find(b => b.name === name)) return name;
   }
-  throw new Error('No valid branch found');
+  return branches[0].name; // fallback
 }
 
 async function fetchTree(owner, repo, branch) {
@@ -47,13 +147,12 @@ async function fetchTree(owner, repo, branch) {
   return j.tree.filter(f => f.type === 'blob');
 }
 
-// Fetch all files and convert to blob URLs
 async function fetchBlobs(owner, repo, branch, tab) {
   const files = await fetchTree(owner, repo, branch);
   const total = files.length;
   const map = {};
   let loaded = 0;
-  
+
   for (const f of files) {
     try {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`;
@@ -70,11 +169,9 @@ async function fetchBlobs(owner, repo, branch, tab) {
   return map;
 }
 
-// Rewrite all relative references recursively
 function rewriteContent(content, currentPath, blobMap) {
   const replacer = (match, attr, path) => {
     if (/^(https?:|data:|blob:)/.test(path)) return match;
-    // Resolve relative path from current file
     const base = new URL(currentPath, 'https://x/').pathname.replace(/^\/+/,'');
     const resolved = new URL(path, 'https://x/' + base).pathname.replace(/^\/+/,'');
     if(blobMap[resolved]) return match.replace(path, blobMap[resolved]);
@@ -98,9 +195,15 @@ async function loadGame(owner, repo) {
 
     if(!blobMap['index.html']) throw new Error('index.html missing');
     let html = await (await fetch(blobMap['index.html'])).text();
+
+    // Inject <base> element so relative paths work before rewriting
+    const baseHref = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+    if (!/<base\s/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+    }
+
     html = rewriteContent(html, 'index.html', blobMap);
 
-    // Rewrite <script src> and inline scripts that load HTML dynamically (optional)
     tab.document.open();
     tab.document.write(html);
     tab.document.close();
