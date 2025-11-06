@@ -9,7 +9,6 @@
     50% { text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 60px #0ff; }
     100% { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff; }
   }
-
   body {
     margin: 0;
     font-family: "Orbitron", monospace;
@@ -18,27 +17,23 @@
     text-align: center;
     overflow-x: hidden;
   }
-
   h1 {
     margin-top: 40px;
     font-size: 3em;
     letter-spacing: 4px;
     animation: glow 3s infinite ease-in-out;
   }
-
   .container {
     display: flex;
     flex-direction: column;
     align-items: center;
     margin: 50px auto;
   }
-
   .row {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
   }
-
   .rounded-button {
     border-radius: 30px;
     border: 2px solid #0ff;
@@ -53,7 +48,6 @@
     position: relative;
     overflow: hidden;
   }
-
   .rounded-button::before {
     content: "";
     position: absolute;
@@ -62,17 +56,14 @@
     transform: translateX(-100%);
     transition: transform 0.5s;
   }
-
   .rounded-button:hover::before {
     transform: translateX(100%);
   }
-
   .rounded-button:hover {
     transform: scale(1.1);
     box-shadow: 0 0 30px #0ff;
     border-color: #f0f;
   }
-
   .button-text {
     color: #0ff;
     margin-top: 15px;
@@ -80,8 +71,6 @@
     text-shadow: 0 0 10px #0ff;
     font-size: 1.2em;
   }
-
-  /* Futuristic glow lines background */
   .scanlines {
     pointer-events: none;
     position: fixed;
@@ -124,20 +113,17 @@
 </div>
 
 <script>
-// Finds a valid branch dynamically by fetching the repo branch list
+let currentOwner = '';
+let currentRepo = '';
+let currentBranch = '';
+
 async function findBranch(owner, repo) {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches`);
   if (!res.ok) throw new Error('Failed to list branches');
   const branches = await res.json();
-  if (!Array.isArray(branches) || branches.length === 0)
-    throw new Error('No branches found');
-  
-  // Prioritize common branches but fallback to the first one
   const preferred = ['main', 'master', 'gh-pages'];
-  for (const name of preferred) {
-    if (branches.find(b => b.name === name)) return name;
-  }
-  return branches[0].name; // fallback
+  for (const name of preferred) if (branches.find(b => b.name === name)) return name;
+  return branches[0].name;
 }
 
 async function fetchTree(owner, repo, branch) {
@@ -149,10 +135,7 @@ async function fetchTree(owner, repo, branch) {
 
 async function fetchBlobs(owner, repo, branch, tab) {
   const files = await fetchTree(owner, repo, branch);
-  const total = files.length;
   const map = {};
-  let loaded = 0;
-
   for (const f of files) {
     try {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`;
@@ -161,12 +144,14 @@ async function fetchBlobs(owner, repo, branch, tab) {
       const blob = await res.blob();
       map[f.path] = URL.createObjectURL(blob);
     } catch(e) {}
-    loaded++;
-    if(tab && tab.document.getElementById('progress')) {
-      tab.document.getElementById('progress').textContent = `Loaded ${loaded} / ${total} files`;
-    }
   }
+  window.blobMap = map;
   return map;
+}
+
+function rewriteOnclickLinks(html) {
+  return html.replace(/onclick\s*=\s*["']\s*window\.location\.href\s*=\s*['"]([^'":]+\.html?)['"]\s*;?\s*["']/g,
+    (match, path) => `onclick="loadGameDynamic('${path}')"`);
 }
 
 function rewriteContent(content, currentPath, blobMap) {
@@ -183,33 +168,90 @@ function rewriteContent(content, currentPath, blobMap) {
     .replace(/import\s+["']([^"']+)["']/g, replacer);
 }
 
+function rewriteLinksForDynamicLoading(doc, owner, repo, blobMap) {
+  doc.querySelectorAll('a').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!href || /^(https?:|data:|blob:)/.test(href)) return;
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      loadGameDynamic(href, doc.defaultView);
+    });
+  });
+}
+
 async function loadGame(owner, repo) {
-  const tab = window.open('', '_blank');
-  tab.document.write(`<html><body style="background:black;color:white;font-family:monospace;text-align:center;padding-top:20%;">
+  currentOwner = owner;
+  currentRepo = repo;
+  currentBranch = await findBranch(owner, repo);
+
+  const gameTab = window.open('', '_blank');
+  gameTab.document.write(`<html><body style="background:black;color:white;font-family:monospace;text-align:center;padding-top:20%;">
     <div id="progress">Preparing ${repo}...</div></body></html>`);
-  tab.document.close();
+  gameTab.document.close();
 
   try {
-    const branch = await findBranch(owner, repo);
-    const blobMap = await fetchBlobs(owner, repo, branch, tab);
+    const blobMap = await fetchBlobs(owner, repo, currentBranch, gameTab);
 
     if(!blobMap['index.html']) throw new Error('index.html missing');
+
     let html = await (await fetch(blobMap['index.html'])).text();
 
-    // Inject <base> element so relative paths work before rewriting
-    const baseHref = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
-    if (!/<base\s/i.test(html)) {
-      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
-    }
-
+    html = rewriteOnclickLinks(html);
+    const baseHref = `https://raw.githubusercontent.com/${owner}/${repo}/${currentBranch}/`;
+    if (!/<base\s/i.test(html)) html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
     html = rewriteContent(html, 'index.html', blobMap);
 
-    tab.document.open();
-    tab.document.write(html);
-    tab.document.close();
+    gameTab.document.open();
+    gameTab.document.write(html);
+    gameTab.document.close();
+
+    gameTab.document.querySelectorAll("script").forEach(oldScript => {
+      const newScript = gameTab.document.createElement("script");
+      [...oldScript.attributes].forEach(attr => newScript.setAttribute(attr.name, attr.value));
+      newScript.textContent = oldScript.textContent;
+      oldScript.replaceWith(newScript);
+    });
+
+    rewriteLinksForDynamicLoading(gameTab.document, owner, repo, blobMap);
+    gameTab.loadGameDynamic = (file) => loadGameDynamic(file, gameTab);
+
   } catch(e) {
-    tab.document.body.innerHTML = `<h1 style="color:red">Error loading game</h1><pre>${e}</pre>`;
+    gameTab.document.body.innerHTML = `<h1 style="color:red">Error loading game</h1><pre>${e}</pre>`;
   }
+}
+
+function loadGameDynamic(fileName, tab = null) {
+  if (!tab) tab = window.open('', '_blank');
+  const blobMap = window.blobMap;
+  const resolved = fileName.replace(/^\/+/, '');
+  if (!blobMap || !blobMap[resolved]) {
+    tab.document.body.innerHTML = `<h1 style="color:red">File not found: ${fileName}</h1>`;
+    return;
+  }
+
+  fetch(blobMap[resolved])
+    .then(r => r.text())
+    .then(html => {
+      html = rewriteOnclickLinks(html);
+      html = rewriteContent(html, resolved, blobMap);
+
+      const baseHref = `https://raw.githubusercontent.com/${currentOwner}/${currentRepo}/${currentBranch}/`;
+      if (!/<base\s/i.test(html)) html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+
+      tab.document.open();
+      tab.document.write(html);
+      tab.document.close();
+
+      tab.document.querySelectorAll("script").forEach(oldScript => {
+        const newScript = tab.document.createElement("script");
+        [...oldScript.attributes].forEach(attr => newScript.setAttribute(attr.name, attr.value));
+        newScript.textContent = oldScript.textContent;
+        oldScript.replaceWith(newScript);
+      });
+
+      rewriteLinksForDynamicLoading(tab.document, '', '', blobMap);
+      tab.loadGameDynamic = (file) => loadGameDynamic(file, tab);
+    });
 }
 </script>
 </body>
