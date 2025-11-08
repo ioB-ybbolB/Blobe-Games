@@ -293,6 +293,20 @@ function rewriteLinksForDynamicLoading(doc, owner, repo, blobMap) {
   });
 }
 
+async function injectCSSBlobs(doc, blobMap) {
+  for (const path in blobMap) {
+    if (!path.endsWith('.css')) continue;
+    try {
+      const cssText = await fetch(blobMap[path]).then(r => r.text());
+      const styleEl = doc.createElement('style');
+      styleEl.textContent = cssText;
+      doc.head.appendChild(styleEl);
+    } catch(e) {
+      console.error('Failed to inject CSS blob', path, e);
+    }
+  }
+}
+  
 async function loadGame(owner, repo) {
   currentOwner = owner;
   currentRepo = repo;
@@ -305,11 +319,9 @@ async function loadGame(owner, repo) {
 
   try {
     const blobMap = await fetchBlobs(owner, repo, currentBranch, gameTab);
-
     if(!blobMap['index.html']) throw new Error('index.html missing');
 
     let html = await (await fetch(blobMap['index.html'])).text();
-
     html = rewriteOnclickLinks(html);
     const baseHref = `https://raw.githubusercontent.com/${owner}/${repo}/${currentBranch}/`;
     if (!/<base\s/i.test(html)) html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
@@ -318,6 +330,8 @@ async function loadGame(owner, repo) {
     gameTab.document.open();
     gameTab.document.write(html);
     gameTab.document.close();
+
+    await injectCSSBlobs(gameTab.document, blobMap); // <-- CSS fix
 
     gameTab.document.querySelectorAll("script").forEach(oldScript => {
       const newScript = gameTab.document.createElement("script");
@@ -345,7 +359,7 @@ function loadGameDynamic(fileName, tab = null) {
 
   fetch(blobMap[resolved])
     .then(r => r.text())
-    .then(html => {
+    .then(async html => {
       html = rewriteOnclickLinks(html);
       html = rewriteContent(html, resolved, blobMap);
 
@@ -355,6 +369,8 @@ function loadGameDynamic(fileName, tab = null) {
       tab.document.open();
       tab.document.write(html);
       tab.document.close();
+
+      await injectCSSBlobs(tab.document, blobMap);
 
       tab.document.querySelectorAll("script").forEach(oldScript => {
         const newScript = tab.document.createElement("script");
