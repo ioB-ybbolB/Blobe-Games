@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -313,8 +312,14 @@ async function loadGame(owner, repo) {
   currentBranch = await findBranch(owner, repo);
 
   const gameTab = window.open('', '_blank');
-  gameTab.document.write(`<html><body style="background:black;color:white;font-family:monospace;text-align:center;padding-top:20%;">
-    <div id="progress">Preparing ${repo}...</div></body></html>`);
+  gameTab.document.write(`
+    <head>
+    <title>${title}</title>
+    <link rel="shortcut icon" type="image/png" href="https://raw.githubusercontent.com/ioB-ybbolB/Blobe-Games/refs/heads/main/favicon.png"></head>
+    <body style="background:black;color:white;font-family:monospace;text-align:center;padding-top:20%;">
+      <div>Loading ${title}...</div>
+    </body>
+  `);
   gameTab.document.close();
 
   try {
