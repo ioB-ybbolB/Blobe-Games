@@ -118,7 +118,7 @@ function renderGames() {
       const btn = document.createElement('button');
       btn.className = 'rounded-button';
       btn.style.backgroundImage = `url('${game.img}')`;
-      btn.onclick = () => loadGame(game.owner, game.repo, game.name); // Pass name for tab title
+      btn.onclick = () => loadGame(game.owner, game.repo, game.name);
 
       const label = document.createElement('div');
       label.className = 'button-text';
