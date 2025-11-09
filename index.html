@@ -12,7 +12,7 @@
   }
   body {
     margin: 0;
-    font-family: "Orbitron", monospace;
+    font-family: "Roboto Mono", monospace;
     background: radial-gradient(circle at top, #000010, #000);
     color: #00ffff;
     text-align: center;
@@ -24,13 +24,50 @@
     letter-spacing: 4px;
     animation: glow 3s infinite ease-in-out;
   }
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 50px auto;
+  
+  /* Sidebar styles */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 250px;
+    height: 100%;
+    background-color: #111;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    padding: 20px;
+    box-shadow: 2px 0 10px rgba(0, 255, 0, 0.5);
   }
-  .row {
+  .sidebar h2 {
+    font-size: 1.8em;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #00ff00;
+  }
+  .sidebar button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    background: transparent;
+    border: 2px solid #0ff;
+    color: #0ff;
+    font-size: 1.2em;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+  }
+  .sidebar button:hover {
+    background-color: #0ff;
+    color: #111;
+  }
+  .sidebar .selected {
+    background-color: #00ff00;
+    color: #111;
+  }
+  .game-container {
+    margin-left: 270px;
+    padding: 20px;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -39,8 +76,8 @@
     border-radius: 30px;
     border: 2px solid #0ff;
     box-shadow: 0 0 20px #0ff;
-    width: 220px;
-    height: 220px;
+    width: 200px;
+    height: 200px;
     margin: 25px;
     background-size: cover;
     background-position: center;
@@ -90,11 +127,17 @@
 </head>
 <body>
 <div class="scanlines"></div>
-<h1>Blobe Games 2</h1>
-<div class="container" id="gameContainer"></div>
+
+<div class="sidebar">
+  <h2>Blobe Games 2</h2>
+  <button id="jsGamesBtn" class="selected">JavaScript Games</button>
+  <button id="emulatedGamesBtn">Emulated Games</button>
+</div>
+
+<div class="game-container" id="gameContainer"></div>
 
 <script>
-const games = [
+const jsGames = [
   { name: "ExtPrint3r", owner: "ioB-ybbolB", repo: "printer", img: "https://raw.githubusercontent.com/ioB-ybbolB/printer/refs/heads/main/icon.png" },
   { name: "Run 3", owner: "BopMooCow23", repo: "Run-3", img: "https://t1.gstatic.com/images?q=tbn:ANd9GcRs82WGl0A8-1WPaqB-UO8p9JdLfdxIRgfR_N7FPCh6WZxcy3rv" },
   { name: "Cat Mario", owner: "BopMooCow23", repo: "Cat-Mario", img: "https://img.itch.zone/aW1nLzEyMzcxMjE1LnBuZw==/original/hFHrmG.png" },
@@ -105,35 +148,59 @@ const games = [
   { name: "Paper.io 2", owner: "Blobby-Boi", repo: "Paper-io-2", img: "https://play-lh.googleusercontent.com/SWTpYqsX9RN2YirCDnAjQ8qsbgn4UrHkRRGsjwuASnHMVqssIvWKzq82mP82y_ffBSE" },
   { name: "Cluster Rush", owner: "ioB-ybbolB", repo: "cluster-rush", img: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSl5B7En5RY6lft5CRJLcNtrfr2ao2Crlyl2M0eRVqp_d7hRrMRx28mD-kwAbB3pPpe3SA&usqp=CAU" }
 ];
+const emulatedGames = [
+  { name: "ExtPrint3r", owner: "ioB-ybbolB", repo: "printer", img: "https://raw.githubusercontent.com/ioB-ybbolB/printer/refs/heads/main/icon.png" },
+  { name: "Cat Mario", owner: "BopMooCow23", repo: "Cat-Mario", img: "https://img.itch.zone/aW1nLzEyMzcxMjE1LnBuZw==/original/hFHrmG.png" },
+  { name: "Snow Rider 3D", owner: "ioB-ybbolB", repo: "snow-rider-3d", img: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTVDJCeFfzhvhhGkf4xJERXF1ePRMOuBKqYPw&s" },
+  { name: "BitLife", owner: "Blobby-Boi", repo: "BitLife", img: "https://play-lh.googleusercontent.com/fUM-UyywXxjC8soxAZdIlxJrlRRXmql8wkE426SHzft4lJycSKVd2jCYQQX1BEG9Xw" }
+];
 
-function renderGames() {
+function showJavaScriptGames() {
   const container = document.getElementById('gameContainer');
-  const rowSize = 4;
-  for (let i = 0; i < games.length; i += rowSize) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    games.slice(i, i + rowSize).forEach(game => {
-      const wrapper = document.createElement('div');
-
-      const btn = document.createElement('button');
-      btn.className = 'rounded-button';
-      btn.style.backgroundImage = `url('${game.img}')`;
-      btn.onclick = () => loadGame(game.owner, game.repo, game.name);
-
-      const label = document.createElement('div');
-      label.className = 'button-text';
-      label.textContent = game.name;
-
-      wrapper.appendChild(btn);
-      wrapper.appendChild(label);
-      row.appendChild(wrapper);
-    });
-    container.appendChild(row);
-  }
+  container.innerHTML = '';
+  renderGames(jsGames);
 }
 
-// Call it
-renderGames();
+function showEmulatedGames() {
+  const container = document.getElementById('gameContainer');
+  container.innerHTML = '';
+  renderGames(emulatedGames);
+}
+  
+function renderGames(games) {
+  const container = document.getElementById('gameContainer');
+  container.innerHTML = '';
+  games.forEach(game => {
+    const wrapper = document.createElement('div');
+
+    const btn = document.createElement('button');
+    btn.className = 'rounded-button';
+    btn.style.backgroundImage = `url('${game.img}')`;
+    btn.onclick = () => loadGame(game.owner, game.repo, game.name);
+
+    const label = document.createElement('div');
+    label.className = 'button-text';
+    label.textContent = game.name;
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(label);
+    container.appendChild(wrapper);
+  });
+}
+
+showJavaScriptGames();
+
+document.getElementById('jsGamesBtn').onclick = function() {
+  document.getElementById('jsGamesBtn').classList.add('selected');
+  document.getElementById('emulatedGamesBtn').classList.remove('selected');
+  renderGames(jsGames);
+};
+
+document.getElementById('emulatedGamesBtn').onclick = function() {
+  document.getElementById('emulatedGamesBtn').classList.add('selected');
+  document.getElementById('jsGamesBtn').classList.remove('selected');
+  renderGames(emulatedGames);
+};
 
 async function findBranch(owner, repo) {
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches`);
